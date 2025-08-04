@@ -1,0 +1,190 @@
+===============================
+PRACTICA 3 – INSTALACIÓN ANSIBLE
+===============================
+
+🖥️ CONTROLADOR ANSIBLE (VM Linux principal)
+👤 Usuario: ansible
+
+1. Instalar Ansible y dependencias:
+------------------------------------
+sudo dnf install -y epel-release
+sudo dnf install -y ansible python3-pip
+pip3 install "pywinrm>=0.3.0"
+
+2. Generar llaves SSH:
+-----------------------
+ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
+
+3. Copiar llave al cliente Linux:
+----------------------------------
+ssh-copy-id ansible@<IP_CLIENTE_LINUX>
+
+4. Crear archivo de inventario:
+-------------------------------
+sudo nano /etc/ansible/hosts
+
+Contenido del archivo:
+-----------------------
+[linux]
+<IP_CLIENTE_LINUX> ansible_user=ansible
+
+[win]
+<IP_CLIENTE_WINDOWS> ansible_user=ansible ansible_password=TuContraseña123! ansible_connection=winrm ansible_winrm_transport=basic ansible_winrm_port=5985 ansible_winrm_server_cert_validation=ignore
+
+5. Probar conexión:
+--------------------
+ansible linux -m ping
+ansible win -m win_ping
+
+
+🐧 VM CLIENTE LINUX (por ejemplo, una Droplet)
+👤 Usuario: root
+
+1. Crear usuario ansible:
+--------------------------
+useradd -m ansible
+passwd ansible
+
+2. Dar permisos sudo al usuario:
+---------------------------------
+usermod -aG sudo ansible
+echo 'ansible ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/ansible
+
+3. Cambiar la shell del usuario:
+---------------------------------
+usermod -s /bin/bash ansible
+
+4. (Opcional) Configurar SSH manualmente:
+------------------------------------------
+mkdir -p /home/ansible/.ssh
+chmod 700 /home/ansible/.ssh
+echo "<LLAVE_PUBLICA_DEL_CONTROLADOR>" > /home/ansible/.ssh/authorized_keys
+chmod 600 /home/ansible/.ssh/authorized_keys
+chown -R ansible:ansible /home/ansible/.ssh
+
+
+🪟 VM CLIENTE WINDOWS
+👤 PowerShell como ADMINISTRADOR
+
+1. Crear usuario ansible:
+--------------------------
+net user ansible TuContraseña123! /add
+net localgroup Administrators ansible /add
+
+2. Habilitar WinRM:
+--------------------
+winrm quickconfig
+winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+winrm set winrm/config/service/auth '@{Basic="true"}'
+Enable-PSRemoting -Force
+
+3. Abrir el puerto en el firewall:
+-----------------------------------
+netsh advfirewall firewall add rule name="WinRM" dir=in action=allow protocol=TCP localport=5985
+
+Nombre: Darwing Peña  
+Matrícula: [Escribe tu matrícula aquí]  
+Práctica 1 – Instalación de Webmin en Oracle Linux  
+IP del servidor: "tu ip"
+Fecha: [Agrega la fecha de entrega]
+
+------------------------------------------
+🔧 Comandos utilizados en la instalación y configuración de Webmin
+------------------------------------------
+
+# Requisitos previos
+sudo dnf install -y perl wget policycoreutils-python-utils
+
+# Agregar el repositorio de Webmin
+sudo tee /etc/yum.repos.d/webmin.repo <<EOF
+[Webmin]
+name=Webmin Distribution Neutral
+baseurl=https://download.webmin.com/download/yum
+enabled=1
+gpgkey=https://download.webmin.com/jcameron-key.asc
+gpgcheck=1
+EOF
+
+# Instalar Webmin
+sudo dnf install -y webmin
+
+# Habilitar e iniciar el servicio
+sudo systemctl enable webmin
+sudo systemctl start webmin
+
+# Abrir puerto 10000 en el firewall
+sudo firewall-cmd --permanent --add-port=10000/tcp
+sudo firewall-cmd --reload
+
+# Establecer contraseña para el usuario root
+sudo passwd root
+
+# Verificar que Webmin está corriendo
+sudo systemctl status webmin
+
+# Verificar que el puerto 10000 está escuchando
+sudo ss -tulpn | grep 10000
+
+# Revisar el log de errores de Webmin (opcional)
+sudo tail -f /var/webmin/miniserv.error
+
+# (Opcional) Agregar un usuario del sistema al grupo sudo (wheel)
+sudo usermod -aG wheel "user"
+
+# Editar configuración de Webmin para verificar que root no está bloqueado
+sudo nano /etc/webmin/miniserv.conf
+# → Asegurarse de que NO exista: denyusers=root
+
+# Reiniciar Webmin después de cualquier cambio
+sudo systemctl restart webmin
+
+# (Opcional) Ver usuarios definidos en Webmin
+sudo cat /etc/webmin/miniserv.users
+
+------------------------------------------
+Fin del archivo
+------------------------------------------
+
+ansible win -m win_copy -a "src=/home/ansible/Escritorio/nota.txt dest='C:\\Users\\ansible\\Documents\\nota.txt'"
+
+ansible linux -m reboot
+
+nano instalar_notepad_win.yml
+
+---
+- name: Instalar Notepad++ en Windows
+  hosts: win
+  tasks:
+    - name: Descargar instalador de Notepad++
+      win_get_url:
+        url: https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6.6/npp.8.6.6.Installer.x64.exe
+        dest: C:\Temp\npp_installer.exe
+
+    - name: Ejecutar instalador de Notepad++
+      win_package:
+        path: C:\Temp\npp_installer.exe
+        arguments: /S
+        product_id: Notepad++
+        state: present
+
+nano instalar_nginx_linux.yml
+
+---
+- name: Instalar y habilitar NGINX en Linux
+  hosts: linux
+  become: yes
+  tasks:
+    - name: Instalar NGINX
+      dnf:
+        name: nginx
+        state: present
+
+    - name: Habilitar y arrancar el servicio NGINX
+      systemd:
+        name: nginx
+        state: started
+        enabled: true
+
+ansible-playbook instalar_notepad_win.yml
+ansible-playbook instalar_nginx_linux.yml
+
