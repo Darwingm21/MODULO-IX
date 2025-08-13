@@ -188,3 +188,156 @@ nano instalar_nginx_linux.yml
 ansible-playbook instalar_notepad_win.yml
 ansible-playbook instalar_nginx_linux.yml
 
+==============================================
+PRÁCTICA 1: Instalación y uso de Webmin
+==============================================
+
+# 1. Instalar Webmin en Oracle Linux / CentOS / RHEL
+sudo dnf install -y perl perl-Net-SSLeay openssl perl-IO-Tty perl-Encode-Detect wget
+wget https://www.webmin.com/download/rpm/webmin-current.rpm
+sudo dnf install -y ./webmin-current.rpm
+
+# 2. Iniciar y habilitar Webmin
+sudo systemctl enable webmin
+sudo systemctl start webmin
+
+# 3. Acceder a Webmin
+# Abrir en el navegador: https://<IP_DEL_SERVIDOR>:10000
+# Usuario: root   Contraseña: la de root
+
+# OPCIONES A MOSTRAR EN WEBMIN:
+# Administración de usuarios → Crear y eliminar usuarios
+# Gestión de servicios → Iniciar, detener y reiniciar (ejemplo: SSH)
+# Configuración de red → Cambiar IP estática
+# Administración de software → Instalar, actualizar y eliminar paquetes
+# Gestión de archivos → Explorar, editar y borrar
+# Monitorización → CPU, memoria, disco
+
+
+==============================================
+PRÁCTICA 2: Despliegue de VM con Terraform en DigitalOcean
+==============================================
+
+# 1. Instalar Terraform
+sudo dnf install -y wget unzip
+wget https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_amd64.zip
+unzip terraform_1.9.5_linux_amd64.zip
+sudo mv terraform /usr/local/bin/
+terraform -version
+
+# 2. Crear directorio de trabajo
+mkdir terraform-do && cd terraform-do
+
+# 3. Archivo de configuración main.tf
+cat <<EOF > main.tf
+provider "digitalocean" {
+  token = "TU_API_TOKEN"
+}
+
+resource "digitalocean_droplet" "OS3vm" {
+  image  = "ubuntu-22-04-x64"
+  name   = "OS3vm"
+  region = "nyc1"
+  size   = "s-1vcpu-1gb"
+  ssh_keys = ["LLAVE_PUBLICA_ID"]
+}
+EOF
+
+# 4. Inicializar y desplegar
+terraform init
+terraform apply -auto-approve
+
+# 5. Validar conexión SSH
+ssh root@<IP_PUBLICA_VM>
+
+
+==============================================
+PRÁCTICA 3: Instalación y configuración de Ansible
+==============================================
+
+# 1. Instalar Ansible en VM-Server
+sudo dnf install -y epel-release
+sudo dnf install -y ansible
+
+# 2. Crear usuario ansible en ambas máquinas Linux
+sudo useradd ansible
+sudo passwd ansible
+sudo usermod -aG wheel ansible
+
+# 3. Configurar acceso SSH sin contraseña
+su - ansible
+ssh-keygen -t rsa -b 4096
+ssh-copy-id ansible@<IP_CLIENTE_LINUX>
+
+# Para Windows usar WinRM:
+# Instalar y habilitar WinRM en el cliente Windows
+winrm quickconfig
+winrm set winrm/config/service/Auth '@{Basic="true"}'
+winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+
+# 4. Configurar inventario Ansible
+sudo nano /etc/ansible/hosts
+
+[linux]
+<IP_CLIENTE_LINUX> ansible_user=ansible
+
+[win]
+<IP_CLIENTE_WINDOWS> ansible_user=ansible ansible_password="CLAVE" ansible_connection=winrm ansible_winrm_transport=basic ansible_winrm_server_cert_validation=ignore
+
+# 5. Probar conexión
+ansible linux -m ping
+ansible win -m win_ping
+
+
+==============================================
+PRÁCTICA 4: Comandos Ad-Hoc
+==============================================
+
+# 1. Copiar archivo TXT a Windows
+ansible win -m win_copy -a "src=/home/ansible/archivo.txt dest='C:\\Users\\<usuario>\\Documents\\archivo.txt'"
+
+# 2. Reiniciar máquina Linux
+ansible linux -m reboot
+
+
+==============================================
+PRÁCTICA 5: Playbooks
+==============================================
+
+# 1. Playbook para instalar Notepad++ en Windows
+nano install_notepad.yml
+---
+- name: Instalar Notepad++ en Windows
+  hosts: win
+  tasks:
+    - name: Descargar instalador
+      win_get_url:
+        url: https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6.2/npp.8.6.2.Installer.x64.exe
+        dest: C:\Temp\npp_installer.exe
+    - name: Instalar Notepad++
+      win_package:
+        path: C:\Temp\npp_installer.exe
+        state: present
+
+# Ejecutar
+ansible-playbook install_notepad.yml
+
+# 2. Playbook para instalar NGINX en Linux
+nano install_nginx.yml
+---
+- name: Instalar y habilitar NGINX
+  hosts: linux
+  become: yes
+  tasks:
+    - name: Instalar NGINX
+      dnf:
+        name: nginx
+        state: present
+    - name: Iniciar servicio NGINX
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+# Ejecutar
+ansible-playbook install_nginx.yml
